@@ -148,5 +148,16 @@
         location.reload(); // Reloads the webpage
     }, 60000); // 60000 milliseconds = 1 minute
 </script>
+<script>
+        // Disable right-click
+        document.addEventListener('contextmenu', event => event.preventDefault());
+
+        // Disable certain keyboard shortcuts
+        document.addEventListener('keydown', (event) => {
+            if (event.key === "F12" || (event.ctrlKey && event.shiftKey && event.key === "I")) {
+                event.preventDefault();
+            }
+        });
+</script>
 </body>
 </html>
