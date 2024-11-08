@@ -1,7 +1,4 @@
-
-
-
-<!DOCTYPE html>
+<meta name='viewport' content='width=device-width, initial-scale=1'/><!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -27,7 +24,7 @@
         label {
             font-weight: bold;
         }
-        input[type="text"], input[type="date"], input[type="time"] {
+        input[type="text"], input[type="date"], input[type="time"], input[type="number"], select {
             width: 100%;
             padding: 10px;
             margin-top: 5px;
@@ -48,7 +45,7 @@
         button:hover {
             background-color: #0056b3;
         }
-        #generated-link {
+        .link-container {
             margin-top: 20px;
             padding: 10px;
             background-color: #e9ecef;
@@ -57,26 +54,34 @@
             font-family: monospace;
             position: relative;
         }
-        #copy-button {
+        .send-button {
             margin-top: 10px;
-            padding: 10px;
+            padding: 5px 10px;
             background-color: #28a745;
             border: none;
             border-radius: 4px;
             color: white;
-            font-size: 16px;
+            font-size: 14px;
             cursor: pointer;
-            display: none;
+            position: absolute;
+            right: 10px;
+            top: 10px;
         }
-        #copy-button:hover {
+        .send-button:hover {
             background-color: #218838;
+        }
+        .sent {
+            background-color: red !important;
+        }
+        .strikethrough {
+            text-decoration: line-through;
         }
     </style>
 </head>
 <body>
 
 <div id="encoder-container">
-    <h2>Devanahalli</h2>
+    <h2>Link Encoder</h2>
 
     <label for="order-id">Order ID</label>
     <input type="text" id="order-id" placeholder="Enter Order ID">
@@ -87,38 +92,58 @@
     <label for="time">Time</label>
     <input type="time" id="time">
 
-    <label for="order-type">Order Type</label>
-    <input type="text" id="order-type" placeholder="Enter Order Type (e.g., 1 for dine-in)">
+    <label for="survey-mode">Survey Mode</label>
+    <select id="survey-mode">
+        <option value="4.0">4.0</option>
+        <option value="3.0">3.0</option>
+    </select>
 
-    <label for="survey-model">Survey Model</label>
-    <input type="text" id="survey-model" placeholder="Enter Survey Model (e.g., 4.0)">
+    <label for="order-type">Order Type</label>
+    <select id="order-type">
+        <option value="1">1 (Dine-in)</option>
+        <option value="2">2 (Takeaway)</option>
+        <option value="3">3 (Delivery)</option>
+    </select>
+
+    <label for="total-links">Total Links Needed</label>
+    <input type="number" id="total-links" placeholder="Enter total number of links">
 
     <label for="phone-number">Phone Number</label>
-    <input type="text" id="phone-number" placeholder="Enter Phone Number">
+    <input type="text" id="phone-number" placeholder="Enter phone number">
 
-    <button onclick="generateLink()">Generate Link</button>
+    <button onclick="generateLinks()">Generate Links</button>
 
-    <div id="generated-link"></div>
-    <button id="copy-button" onclick="copyLink()">Copy to Clipboard</button>
+    <div id="generated-links"></div>
 </div>
 
 <script>
-    function generateLink() {
-        const storeID = "000000000-01";
-        const orderID = document.getElementById('order-id').value;
+    function generateLinks() {
+        const storeID = "91KDIPL999-01";  // Updated store ID
+        let orderID = parseInt(document.getElementById('order-id').value);
         const date = document.getElementById('date').value;
-        const time = document.getElementById('time').value + ".000";
+        const initialTime = document.getElementById('time').value;
+        const surveyModel = document.getElementById('survey-mode').value;
         const orderType = document.getElementById('order-type').value;
-        const surveyModel = document.getElementById('survey-model').value;
-        const phoneNumber = document.getElementById('phone-number').value;
+        const totalLinks = parseInt(document.getElementById('total-links').value);
+        const userPhoneNumber = document.getElementById('phone-number').value;
 
-        if (orderID && date && time && orderType && surveyModel && phoneNumber) {
+        if (isNaN(orderID) || !date || !initialTime || !totalLinks || !surveyModel || !orderType || !userPhoneNumber) {
+            alert("Please fill out all fields correctly.");
+            return;
+        }
+
+        let linksHtml = "";
+        let time = new Date(`${date}T${initialTime}`);
+
+        for (let i = 0; i < totalLinks; i++) {
+            const phoneNumber = generatePhoneNumber();
+
             const data = {
                 "S": storeID,
-                "OI": orderID,
+                "OI": orderID.toString(),
                 "D": date,
-                "TM": time,
-                "TI": orderID,
+                "TM": time.toISOString().slice(11, 19) + ".000",
+                "TI": orderID.toString(),
                 "OT": orderType,
                 "SM": surveyModel,
                 "PH": phoneNumber
@@ -127,37 +152,41 @@
             const encodedData = btoa(JSON.stringify(data));
             const link = `https://customer.kfc-listens.com/jfe/form/SV_8bHC0noyvM3jPWC?Q_EED=${encodedData}`;
 
-            document.getElementById('generated-link').textContent = link;
-            document.getElementById('copy-button').style.display = 'block';
-        } else {
-            alert("Please fill out all fields.");
+            linksHtml += `
+                <div class="link-container">
+                    <span id="link-${i}">${link}</span>
+                    <button id="send-${i}" class="send-button" onclick="sendLink('${link}', '${userPhoneNumber}', 'send-${i}')">Send</button>
+                </div>
+            `;
+
+            // Increment time by 3 minutes
+            time.setMinutes(time.getMinutes() + 3);
+            // Increment order ID by 2
+            orderID += 2;
         }
+
+        document.getElementById('generated-links').innerHTML = linksHtml;
     }
 
-    function copyLink() {
-        const link = document.getElementById('generated-link').textContent;
-        navigator.clipboard.writeText(link).then(() => {
-            alert("Link copied to clipboard!");
-        }).catch(err => {
-            console.error('Failed to copy: ', err);
-        });
+    function sendLink(link, phoneNumber, buttonId) {
+        const whatsappLink = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(link)}`;
+        window.open(whatsappLink, '_blank');
+
+        // Change the button color to red after sending
+        document.getElementById(buttonId).classList.add('sent');
+    }
+
+    function generatePhoneNumber() {
+        const prefixes = ["9", "8", "7"];
+        const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+  
+      let number = prefix;
+        for (let i = 0; i < 9; i++) {
+            number += Math.floor(Math.random() * 10);
+        }
+        return number;
     }
 </script>
-<script>
-    setTimeout(function() {
-        location.reload(); // Reloads the webpage
-    }, 60000); // 60000 milliseconds = 1 minute
-</script>
-<script>
-        // Disable right-click
-        document.addEventListener('contextmenu', event => event.preventDefault());
 
-        // Disable certain keyboard shortcuts
-        document.addEventListener('keydown', (event) => {
-            if (event.key === "F12" || (event.ctrlKey && event.shiftKey && event.key === "I")) {
-                event.preventDefault();
-            }
-        });
-</script>
 </body>
 </html>
